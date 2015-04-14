@@ -9,23 +9,24 @@ from sklearn import cross_validation
 from sklearn.grid_search import GridSearchCV
 from sklearn.svm import SVR
 import scipy as sp
+import matplotlib.pyplot as plt
 
 count_season = [0]*4
+count_weather = [0]*3
 count_season[0] = 116
 count_season[1] = 215
 count_season[2] = 234
 count_season[3] = 198
+count_weather[0] = 205
+count_weather[1] = 178
+count_weather[0] = 118
 
-count_holiday = [0]*2
+weather_c = [0]*3
 
-count_holiday[0] = 191
-count_holiday[1] = 185
-
-cols_to_use = (0,4,8,9,10,11,12,13,14,15,16)
+cols_to_use = (0,3,4,8,9,10,11,12,13,14,15,16)
 
 def featureEngineeringHelper(row, isTrainData):
 	global count_season
-	global count_holiday
 	row = row.split(',')
 	(date, time) = row[0].split(' ')
 	year = int(date.split('-')[0])
@@ -36,24 +37,23 @@ def featureEngineeringHelper(row, isTrainData):
 	hour = int(time.split(':')[0])
 	#hour = math.cos(((2*math.pi)/24)*hour)
 	season = int(row[1])
-	spring =0 
-	summer=0
-	fall=0
-
-	if(season == 1):
-		spring=1
-	elif(season == 2):
-		summer = 1
-	elif(season == 3):
-		fall = 1
-	else:
-		pass
 
 	holiday = int(row[2])
 	workingDay = int(row[3])
 	weather = int(row[4])
 	if(weather == 4):
 		weather = 3
+
+	sunday = 0
+	clear =0 
+	mist=0
+	if(weather == 1):
+		clear=1
+	elif(weather == 2):
+		mist = 1
+	else:
+		pass
+
 	temp = float(row[5])
 	atemp = float(row[6])
 	humidity = float(row[7])
@@ -68,24 +68,22 @@ def featureEngineeringHelper(row, isTrainData):
 		peakhour = 1
 	else:
 		peakhour = 0
+
 	if isTrainData:
 		casual = int(row[9])
 		registered = int(row[10])
 		count = int(row[11])	
-		#count_season[season-1] = count_season[season-1]+ count
-		#season_c[season-1] = season_c[season-1]+1
-		#count_holiday[holiday] += count
-		#holiday_c[holiday] += 1
-
-		#                    0     1      2     3       4      5       6      7      8       	9        10       11     12      13        14       15		        16                         17
-		transformed_row = [year, month, day, weekday, hour, spring, summer, fall ,holiday, workingDay, weather, temp, atemp, humidity, windspeed, peakhour, count_season[season-1], count_holiday[holiday], casual, registered]
+		#count_weather[weather-1] = count_weather[weather-1]+ count
+		#weather_c[weather-1] = weather_c[weather-1]+1
+		#                    0     1      2     3       4      5       6      7      8       	9        10       11     12      13        14       15		        16
+		transformed_row = [year, month, day, weekday, hour, clear, mist, sunday ,holiday, workingDay, weather, temp, atemp, humidity, windspeed, peakhour, count_season[season-1], casual, registered]
 		# transformed_row = [year, month, day, weekday, hour, count_season[season-1] ,holiday, workingDay, weather, temp, atemp, humidity, windspeed, peakhour, casual, registered]
 		#month used here
 
 		return transformed_row
 	else:
 		# transformed_row = [year, month, day, weekday, hour, spring, summer, fall, holiday, workingDay, weather, temp, atemp, humidity, windspeed, peakhour]	
-		transformed_row = [year, month, day, weekday, hour, spring, summer, fall ,holiday, workingDay, weather, temp, atemp, humidity, windspeed, peakhour, count_season[season-1], count_holiday[holiday]]
+		transformed_row = [year, month, day, weekday, hour, clear, mist, sunday ,holiday, workingDay, weather, temp, atemp, humidity, windspeed, peakhour, count_season[season-1]]
 		return transformed_row
 
 def featureEngineering(dataSet, isTrainData):
@@ -97,17 +95,48 @@ def featureEngineering(dataSet, isTrainData):
 			break
 		transformed_row = featureEngineeringHelper(row, isTrainData) #y1 is a tuple of the form (casual, registered) 												 #x1 is a list of new features
 		dataSetModified.append(transformed_row)
+	#for x in xrange(0,3):
+	#	print count_weather[x]/weather_c[x]
+	#sys.exit(0)
 	return dataSetModified     
+
+def plotFeatureImportance(forest):
+
+	x_bar = ["year","weekday","hour","holiday","workingDay","weather","temp","atemp","humidity","windspeed","peakhour","count_season"]
+	new_XBar = []
+	importances = forest.feature_importances_
+	std = np.std([tree.feature_importances_ for tree in forest.estimators_],
+	             axis=0)
+	indices = np.argsort(importances)[::-1]
+	#indices = np.array(importances)[::-1]
+	# Print the feature ranking
+	print("Feature ranking:")
+
+	for f in range(12):
+	    print("%d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
+
+	# Plot the feature importances of the forest
+	print indices
+	for x in xrange(0,12):
+		new_XBar.append(x_bar[indices[x]])
+	print new_XBar
+	plt.figure()
+	plt.title("Feature importances")
+	plt.bar(range(12), importances[indices],
+	       color="g", yerr=std[indices], align="center")
+	plt.xticks(range(12),new_XBar)
+	plt.xlim([-1, 12])
+	plt.show()
 
 def getRMLSE(Y_predicted):
 	Y_actual = np.load("answers.npy")
 	return score_func(Y_actual, Y_predicted)
 
 def score_func(y, y_pred):
-	y = y.ravel()
-	y_pred = y_pred.ravel()
-	res = math.sqrt( np.sum( np.square(np.log(y_pred+1) - np.log(y+1)) ) / len(y) )
-	return res
+    y = y.ravel()
+    y_pred = y_pred.ravel()
+    res = math.sqrt( np.sum( np.square(np.log(y_pred+1) - np.log(y+1)) ) / len(y) )
+    return res
 
 def llfun(act, pred):
 	epsilon = 1e-15
@@ -125,7 +154,7 @@ def cross_validation(train, target):
 	params = {'n_estimators': 1000, 'random_state': 0, 'min_samples_split': 11, 'oob_score': False, 'n_jobs':1 }
 	clf = ensemble.RandomForestRegressor(**params)
 
-	params = {'n_estimators': 100, 'max_depth': 6, 'random_state':0}
+	params = {'n_estimators': 130, 'max_depth': 6, 'random_state':0}
 	gbm = ensemble.GradientBoostingRegressor(**params)
 
 	#Simple K-Fold cross validation. 5 folds.
@@ -143,7 +172,14 @@ def cross_validation(train, target):
 	print "Results: " + str( np.array(results).mean() )
 
 def randomForestModel():
-	params = {'n_estimators': 1000, 'random_state': 0, 'min_samples_split': 11, 'oob_score': False, 'n_jobs':1 }
+
+	# rf = ensemble.RandomForestRegressor(bootstrap=True, criterion='mse', max_depth=12,
+ #           max_features='auto', max_leaf_nodes=None, min_samples_leaf=2,
+ #           min_samples_split=2, min_weight_fraction_leaf=0.0,
+ #           n_estimators=1000, n_jobs=1, oob_score=False, random_state=None,
+ #           verbose=0, warm_start=False)
+
+	params = {'n_estimators': 1000, 'random_state': 0, 'min_samples_split': 11, 'oob_score': False, 'n_jobs':-1 }
 	rf = ensemble.RandomForestRegressor(**params)
 	return rf
 
@@ -246,6 +282,30 @@ def supportVectorRegression(X, Y_casual, Y_registered, testSet_final):
 	final_prediction = np.intp(np.around(svr1_Y + svr2_Y))
 	return final_prediction
 
+def rf(X, Y_casual, Y_registered, testSet_final):
+	rf1 = randomForestModel()  #train for casual
+	rf2 = randomForestModel()  #train for registered
+	rf1.fit(X, Y_casual)
+	rf2.fit(X, Y_registered)  
+	rf1_Y = np.exp(rf1.predict(testSet_final))-1
+	rf2_Y = np.exp(rf2.predict(testSet_final))-1
+	final_prediction = (rf1_Y + rf2_Y )
+	final_prediction = np.intp(np.around(final_prediction))  #round and convert to integer
+	return final_prediction
+
+def gbm(X, Y_casual, Y_registered, testSet_final):
+
+	gbm1 = gradientDescentModel()   #train for casual
+	gbm2 = gradientDescentModel()   #train for registered
+	gbm1.fit(X, Y_casual)
+	gbm2.fit(X, Y_registered)
+	gbm1_Y = np.exp(gbm1.predict(testSet_final))-1
+	gbm2_Y = np.exp(gbm2.predict(testSet_final))-1
+	final_prediction = (gbm1_Y + gbm2_Y)
+	final_prediction = np.intp(np.around(final_prediction))  #round and convert to integer
+	return final_prediction
+
+
 def rfGbmCombined(X, Y_casual, Y_registered, testSet_final):
 	#creating models
 	rf1 = randomForestModel()  #train for casual
@@ -255,6 +315,9 @@ def rfGbmCombined(X, Y_casual, Y_registered, testSet_final):
 	#fitting models
 	# rf1.fit(train_X, train_Y[:, 0])  #train_Y[:, 0] - use 0th column of train_Y
 	rf1.fit(X, Y_casual)
+
+	plotFeatureImportance(rf1)
+	
 	rf2.fit(X, Y_registered)  
 	gbm1.fit(X, Y_casual)
 	gbm2.fit(X, Y_registered)
@@ -291,12 +354,24 @@ def getDateTimeColumn(testSetOriginal):
 		dateTimeColumn.append(row[0])
 	return dateTimeColumn
 
+def grid_search(X, Y):
+	
+	from sklearn.grid_search import GridSearchCV
+	
+	tuned_parameters = [{'max_features': ['sqrt', 'log2', 'auto'], 'max_depth': [5, 8, 12], 'min_samples_leaf': [2, 5, 10]}]
+	rf =  GridSearchCV(ensemble.RandomForestRegressor(n_jobs=1, n_estimators=1000), tuned_parameters, cv=3, verbose=2).fit(X, Y)
+	print 'Best Parameters:'
+	print rf.best_estimator_
+	sys.exit(0)
+
+
 if __name__ == '__main__':
 	trainSetOriginal = open('train.csv', "r")
 	testSetOriginal = open('test.csv', "r")
 
 	#Feature Engineering
 	trainSetModified = featureEngineering(trainSetOriginal, True)  #numpy array format
+
 	testSetModified = featureEngineering(testSetOriginal, False)  #numpy array format
 
 	#splitting trainset into X and Y components. Y consists of [casual, registered]
@@ -316,9 +391,17 @@ if __name__ == '__main__':
 
 	X = train_X[:, cols_to_use]              #final train set
 	testSet_final = testSet[:, cols_to_use]  #final test set
-
+	
+	#grid_search(X, Y_casual)
 	#RandomForest and GradientBoosting Combined
-	final_prediction = rfGbmCombined(X, Y_casual, Y_registered, testSet_final)
+	#final_prediction = rfGbmCombined(X, Y_casual, Y_registered, testSet_final)
+	#np.save("rf_Gbm.npy",final_prediction)
+
+	final_prediction = gbm(X, Y_casual, Y_registered, testSet_final)
+	np.save("gbm.npy",final_prediction)
+
+	#final_prediction = rf(X, Y_casual, Y_registered, testSet_final)
+	#np.save("rf.npy",final_prediction)
 
 	#Elastic net model
 	# final_prediction = elasticnet(X, Y_casual, Y_registered, testSet_final)
